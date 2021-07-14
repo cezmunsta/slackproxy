@@ -29,21 +29,15 @@ from libsrv import (
     __version__,
     BASE_PATH,
 )
-from libsrv.handlers import (
-    JsonResourceHandler,
-)
-from libsrv.service import (
-    Service,
-)
-from libsrv.db import (
-    SQLiteAdapter,
-    #log,
-)
+from libsrv.handlers import JsonResourceHandler
+from libsrv.db import SQLiteAdapter
 from libsrv.error import (
     AccessDeniedError,
     AuthRequiredError,
     HookNotImplementedError,
 )
+from libsrv.service import Service
+from libsrv.storage import Storage
 
 AUTH_UPDATE_INTERVAL = 1800
 
@@ -88,27 +82,12 @@ def parse_args():
                             description='Proxy for Slack, with channel rules and auditing',
                             formatter_class=ArgumentDefaultsHelpFormatter)
     main_group = parser.add_argument_group('main options')
-    #db_group = parser.add_argument_group('database options')
     extras_group = parser.add_argument_group('extra options')
-
-    #main_group.add_argument('--channel', help='Default channel used when none is specified')
-    #main_group.add_argument('--hook', help='Webhook URI')
     main_group.add_argument('--config', dest='config_file', help="Path to config file")
-    #main_group.add_argument('--interval', '-i', dest='auth_update_interval',
-    #                        default=AUTH_UPDATE_INTERVAL, type=int,
-    #                        help='Specify the number of seconds for the interval between rule refreshes')
-    #main_group.add_argument('--port', '-p', type=int, help='Specify the server-type')
     main_group.add_argument('--system-db', dest='db_name', default=SYSTEM_DB, help="Path to SQLite storage")
-
-    #db_group.add_argument('--db-conf', help='Authentication DB defaults-file')
-    #db_group.add_argument('--db-conf-group', help='Authentication DB defaults-file group')
-    #db_group.add_argument('--db-host', help='Authentication DB address')
-    #db_group.add_argument('--db-name', help='Authentication DB schema name')
-
     extras_group.add_argument('--version', action='store_true', help='Show the current version')
     extras_group.add_argument('--verbose', action='store_true', help='Provide additional output')
     extras_group.add_argument('--debug', action='store_true', help='Provide stderr debug output')
-
     return vars(parser.parse_args())
 
 
@@ -125,20 +104,6 @@ class RetryException(Exception):
     """
     Used to control retry requests
     """
-
-
-class Storage(SQLiteAdapter):
-    """
-    Storage backend
-
-    >>> with Storage(database='test.db') as dbc:
-            dbc.execute('CREATE TABLE foo (id INTEGER)')
-    """
-    config = {
-        'database': '%s.db' % __name__,
-        'purge': True,
-        'isolation_level': None
-    }
 
 
 class SlackProxy(Service):
@@ -167,9 +132,9 @@ class SlackProxy(Service):
         super().__init__(**kwargs)
         self._auth = {}
         if self.external_data:
-            self.log['default'].debug('processing external data')
+            self.log.default.debug('processing external data')
         if not self.channel_rules:
-            self.log['default'].warning('channel rules need configuring')
+            self.log.default.warning('channel rules need configuring')
 
     @property
     def external_data(self):
@@ -211,7 +176,7 @@ class SlackProxy(Service):
         """
         if (not self.metadata['rules_updated'] or not self._auth or
                 time.time() > (self.metadata['rules_updated'] + self.config['rule_update_interval'])):
-            self.log['default'].info('updating channel_rules')
+            self.log.default.info('updating channel_rules')
             _auth_list = list(self.config.get('external_data', {}).get('auth', [''])).pop()
 
             for _auth in _auth_list:
@@ -225,7 +190,7 @@ class SlackProxy(Service):
                                      u'#{0}-private'.format(_api_user)]
                     }
                     self.metadata['auth_updated'] = time.time()
-                    self.log['default'].debug('user %s has access to %r', _api_user, self._auth[_api_user]['channels'])
+                    self.log.default.debug('user %s has access to %r', _api_user, self._auth[_api_user]['channels'])
 
             # noinspection DuplicatedCode
             with self.db as dbc:
@@ -234,15 +199,15 @@ class SlackProxy(Service):
                     try:
                         self._auth.setdefault(rule['api_user'], {})
                     except IndexError:
-                        self.log['default'].error('bad rule formattting')
+                        self.log.default.error('bad rule formattting')
                         break
                     try:
                         self._auth[rule['api_user']].setdefault('channels', [])
                         if rule['channels']:
                             self._auth[rule['api_user']]['channels'] += rule['channels'].split(',')
                             self.metadata['auth_updated'] = time.time()
-                        self.log['default'].debug('user %s has access to %r', rule['api_user'],
-                                  self._auth[rule['api_user']]['channels'])
+                        self.log.default.debug('user %s has access to %r', rule['api_user'],
+                                               self._auth[rule['api_user']]['channels'])
                     except IndexError:
                         pass
         return self._auth
@@ -323,18 +288,18 @@ class SlackProxyHandler(JsonResourceHandler):
         :return: bool
         """
         _user = self._app.channel_rules.get(api_user, {})
-        self.log['default'].debug('user: %r', [_user.get('channels'), api_user, channel])
+        self.log.default.debug('user: %r', [_user.get('channels'), api_user, channel])
 
         if self._app.use_external_data and (not _user or api_key != _user.get('auth')):
-            self.log['default'].warning('user not found %s', api_user)
+            self.log.default.warning('user not found %s', api_user)
             return False
         if channel in _user.get('channels', {}):
-            self.log['default'].debug('channel access granted to %s', api_user)
+            self.log.default.debug('channel access granted to %s', api_user)
             return True
 
         _global_user = self._app.channel_rules.get('all')
         if _global_user and channel in _global_user.get('channels', {}):
-            self.log['default'].debug('global access granted to %s', api_user)
+            self.log.default.debug('global access granted to %s', api_user)
             return True
 
         return False
@@ -356,7 +321,7 @@ class SlackProxyHandler(JsonResourceHandler):
             """
             # TODO: Handle missing expressions
             # TODO: Handle IPv6
-            self.log['default'].debug('Find IP: %s', text)
+            self.log.default.debug('Find IP: %s', text)
             return self._app.filters['ip'].match(text)
 
         def _format_ip(ip):  # pylint: disable=invalid-name
@@ -366,7 +331,7 @@ class SlackProxyHandler(JsonResourceHandler):
             :param ip:
             :return: string
             """
-            self.log['default'].debug('Format IP: %s', ip)
+            self.log.default.debug('Format IP: %s', ip)
             return '.'.join(['xxx', 'xxx'] + ip.split('.')[2:])
 
         def _process(words):
@@ -376,13 +341,13 @@ class SlackProxyHandler(JsonResourceHandler):
             :param words:
             :return:
             """
-            self.log['default'].debug('Words are: %s', words)
+            self.log.default.debug('Words are: %s', words)
             for word in set(words.split(' ')):
                 ip = _find_ip(word)  # pylint: disable=invalid-name
                 if ip:
                     words = words.replace(ip.string, _format_ip(ip.string))
-                    self.log['default'].debug('Obfuscating IP: %s', word)
-            self.log['default'].debug('Words now: %s', words)
+                    self.log.default.debug('Obfuscating IP: %s', word)
+            self.log.default.debug('Words now: %s', words)
             return words
 
         if lookup == 'attachments':
@@ -444,7 +409,7 @@ class SlackProxyHandler(JsonResourceHandler):
         with self._app.db as dbc:
             if not dbc.execute('INSERT INTO audit_log (ts, origin, ip_addr, channel, message, dispatched) '
                                'VALUES(?, ?, ?, ?, ?, ?)', (tstamp, user, ip_addr, channel, message, dispatched)):
-                self.log['default'].warning('audit_log failed: %s', json.dumps({
+                self.log.default.warning('audit_log failed: %s', json.dumps({
                     'ts': tstamp,
                     'origin': user,
                     'ip_addr': ip_addr,
@@ -509,5 +474,4 @@ class SlackProxyHandler(JsonResourceHandler):
 
 
 if __name__ == '__main__':
-    proxy = SlackProxy(**parse_args())
-    task.react(proxy.run)
+    task.react(SlackProxy(**parse_args()).run)

@@ -1,8 +1,11 @@
 .idea
 __pycache__/
 _trial_temp/
+*.db
+*.log
 *.pyc
 *.sw?
-venv
 certs
+.coverage
 data
+venv
