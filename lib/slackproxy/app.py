@@ -30,7 +30,6 @@ from libsrv import (
     BASE_PATH,
 )
 from libsrv.handlers import JsonResourceHandler
-from libsrv.db import SQLiteAdapter
 from libsrv.error import (
     AccessDeniedError,
     AuthRequiredError,
@@ -200,6 +199,12 @@ class SlackProxy(Service):
                         self._auth.setdefault(rule['api_user'], {})
                     except IndexError:
                         self.log.default.error('bad rule formattting')
+                        break
+                    except TypeError:
+                        self.log.default.error('bad type for rule: %r', rule)
+                        break
+                    except ValueError:
+                        self.log.default.error('bad value for rule: %r', rule)
                         break
                     try:
                         self._auth[rule['api_user']].setdefault('channels', [])

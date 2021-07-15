@@ -12,7 +12,7 @@ class TestSuite(unittest.TestSuite):
     """
     Customised TestSuite
     """
-    def __init__(self, tests=()):
+    def __init__(self, tests=()):  # pylint: disable=super-init-not-called
         self._tests = []
         self._removed_tests = 0
         for test in tests:

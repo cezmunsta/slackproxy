@@ -17,6 +17,8 @@ class AppTestCase(ServiceTestCase):
     """
     Test case for SlackProxy
     """
+    _database = SLACKPROXY_SERVER_ARGS['db_name']
+
     def setUp(self) -> None:
         """
 
