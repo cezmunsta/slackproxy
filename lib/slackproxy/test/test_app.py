@@ -6,6 +6,7 @@ import sqlite3
 import time
 import unittest
 
+from libsrv.storage import Storage
 from libsrv.test.test_service import ServiceTestCase
 from slackproxy import app
 
@@ -73,6 +74,44 @@ class AppTestCase(ServiceTestCase):
             except sqlite3.OperationalError:
                 pass
         self.assertEqual(len(self.srv.channel_rules), rule_updates)
+        with self.srv.db as dbc:
+            dbc.execute('DELETE FROM channel_rules')
+
+    def test_external_data(self) -> None:
+        """
+        Test handling of external datasource
+
+        :return:
+        """
+        # Test default is empty
+        self.assertEqual(self.srv.external_data, {})
+        # Test valid and invalid identifiers
+        self._files += ['test_auth.db']
+        with Storage(database='test_auth.db') as dbc:
+            dbc.execute("CREATE TABLE auth (identifier varchar(100) not null "
+                        "primary key, api_key char(40) not null, active bool default 1);")
+            dbc.execute("REPLACE INTO auth VALUES(?, ?, 1)", ('dummy', 'dummy'))
+            dbc.execute("REPLACE INTO auth VALUES(?, ?, 0)", ('invalid', 'invalid'))
+        self.srv.config.update(dict(
+            external_driver='libsrv.db.SQLiteAdapter',
+            external_config=dict(
+                database='test_auth.db',
+                purge=True,
+                isolation_level=None,
+            ),
+            external_queries=dict(
+                auth='SELECT identifier, api_key FROM auth WHERE active'
+            )
+        ))
+        self.assertNotEqual(self.srv.external_data, {})
+        _auth_rules = [x['identifier'] for x in list(self.srv.external_data.get('auth', [''])).pop()]
+        self.assertIn('dummy', _auth_rules)
+        self.assertNotIn('invalid', _auth_rules)
+        self.srv.config.update(dict(
+            external_driver='libsrv.db.SQLiteAdapter',
+            external_config={},
+            external_queries={},
+        ))
 
 
 if __name__ == '__main__':
