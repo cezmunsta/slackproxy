@@ -188,7 +188,7 @@ class SlackProxy(Service):
                         'channels': [u'#{0}'.format(_api_user), u'#{0}_private'.format(_api_user),
                                      u'#{0}-private'.format(_api_user)]
                     }
-                    self.metadata['auth_updated'] = time.time()
+                    self.metadata['rules_updated'] = time.time()
                     self.log.default.debug('user %s has access to %r', _api_user, self._auth[_api_user]['channels'])
 
             # noinspection DuplicatedCode
@@ -210,7 +210,7 @@ class SlackProxy(Service):
                         self._auth[rule['api_user']].setdefault('channels', [])
                         if rule['channels']:
                             self._auth[rule['api_user']]['channels'] += rule['channels'].split(',')
-                            self.metadata['auth_updated'] = time.time()
+                            self.metadata['rules_updated'] = time.time()
                         self.log.default.debug('user %s has access to %r', rule['api_user'],
                                                self._auth[rule['api_user']]['channels'])
                     except IndexError:
