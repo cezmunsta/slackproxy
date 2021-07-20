@@ -128,7 +128,11 @@ class SlackProxy(Service):
         :param kwargs: configuration variables
         :return: void
         """
-        super().__init__(**kwargs)
+        server_args = kwargs.copy()
+        server_args.update({
+            'site_handler': SlackProxyHandler(),
+        })
+        super().__init__(**server_args)
         self._auth = {}
         if self.external_data:
             self.log.default.debug('processing external data')
@@ -224,7 +228,7 @@ class SlackProxy(Service):
 
         :return: dict
         """
-        return self._filtering
+        return self.DEFAULT_FILTERS
 
     @staticmethod
     def _db_init_config():
@@ -449,8 +453,8 @@ class SlackProxyHandler(JsonResourceHandler):
             if not self.auth_user(self._output['user'], self._output['key'], self._output.get('channel')):
                 raise AccessDeniedError('permission denied', request)
 
-            #self.filter()
-            #self.relay(request)
+            self.filter()
+            self.relay(request)
 
             _dispatched = True
             _code = self._output['slack'].status_code
