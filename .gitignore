@@ -1,0 +1,8 @@
+.idea
+__pycache__/
+_trial_temp/
+*.pyc
+*.sw?
+venv
+certs
+data
