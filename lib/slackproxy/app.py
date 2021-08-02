@@ -221,15 +221,6 @@ class SlackProxy(Service):
                         pass
         return self._auth
 
-    @property
-    def filters(self):
-        """
-        Provide access to filters
-
-        :return: dict
-        """
-        return self.DEFAULT_FILTERS
-
     @staticmethod
     def _db_init_config():
         """
@@ -286,6 +277,7 @@ class SlackProxyHandler(JsonResourceHandler):
     >>> reactor.listenTCP(80, site)
     >>> reactor.run()
     """
+    LOOKUP_KEY = 'slack'
 
     def auth_user(self, api_user, api_key, channel):
         """
@@ -310,7 +302,6 @@ class SlackProxyHandler(JsonResourceHandler):
         if _global_user and channel in _global_user.get('channels', {}):
             self.log.default.debug('global access granted to %s', api_user)
             return True
-
         return False
 
     def filter(self):
@@ -396,12 +387,12 @@ class SlackProxyHandler(JsonResourceHandler):
         except KeyError:
             pass
 
-        self._output['slack'] = requests.post(self._app.config.get('hook'), json=data)
-        if self._output['slack'].status_code in [429, 500]:
-            if self._output['slack'].status_code == 429:
-                time.sleep(self._output['slack'].getHeader('Retry-After', 10))
-            raise RetryException('failed to send - {0}'.format(self._output['slack'].status_code))
-        return self._output['slack'].ok
+        self._output[self.LOOKUP_KEY] = requests.post(self._app.config.get('hook'), json=data)
+        if self._output[self.LOOKUP_KEY].status_code in [429, 500]:
+            if self._output[self.LOOKUP_KEY].status_code == 429:
+                time.sleep(self._output[self.LOOKUP_KEY].getHeader('Retry-After', 10))
+            raise RetryException('failed to send - {0}'.format(self._output[self.LOOKUP_KEY].status_code))
+        return self._output[self.LOOKUP_KEY].ok
 
     def audit(self, tstamp, user, ip_addr, channel, message, dispatched):  # pylint: disable=too-many-arguments
         """
@@ -435,8 +426,8 @@ class SlackProxyHandler(JsonResourceHandler):
         :param request:
         :return: JSON
         """
-        _data = request.content.read()
-        _code = 500
+        _data = request.content.read().decode()
+        _code = HTTPStatus.INTERNAL_SERVER_ERROR
         _dispatched = False
 
         request.setHeader('Content-Type', 'application/json')
@@ -453,15 +444,17 @@ class SlackProxyHandler(JsonResourceHandler):
             if not self.auth_user(self._output['user'], self._output['key'], self._output.get('channel')):
                 raise AccessDeniedError('permission denied', request)
 
+            self.log.default.debug('Original request data: %r', self._output)
             self.filter()
+            self.log.default.debug('Filtered request data: %r', self._output)
             self.relay(request)
 
             _dispatched = True
-            _code = self._output['slack'].status_code
+            _code = self._output[self.LOOKUP_KEY].status_code
 
             self._output = {
-                'message': self._output['slack'].text,
-                'reason': self._output['slack'].reason,
+                'message': self._output[self.LOOKUP_KEY].text,
+                'reason': self._output[self.LOOKUP_KEY].reason,
                 'status': _code
             }
         except ValueError:
