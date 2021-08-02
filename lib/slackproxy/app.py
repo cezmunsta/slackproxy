@@ -36,7 +36,6 @@ from libsrv.error import (
     HookNotImplementedError,
 )
 from libsrv.service import Service
-from libsrv.storage import Storage
 
 AUTH_UPDATE_INTERVAL = 1800
 
