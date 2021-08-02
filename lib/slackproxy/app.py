@@ -61,12 +61,12 @@ SYSTEM_DEFAULTS = {
     'port': 12345,
     'channel': '@ceri',
     'ssl': {
-        'key': os.path.join(BASE_PATH, 'certs', 'server.pem'),
-        'cert': os.path.join(BASE_PATH, 'certs', 'server.pem'),
+        'privateKeyFileName': os.path.join(BASE_PATH, 'certs', 'server.pem'),
+        'certificateFileName': os.path.join(BASE_PATH, 'certs', 'server.pem'),
     },
 }
 
-__all__ = ['Storage', 'SlackProxy', 'SlackProxyHandler']
+__all__ = ['SlackProxy', 'SlackProxyHandler']
 
 
 def parse_args():
@@ -128,7 +128,8 @@ class SlackProxy(Service):
         :param kwargs: configuration variables
         :return: void
         """
-        server_args = kwargs.copy()
+        server_args = SYSTEM_DEFAULTS
+        server_args.update(kwargs)
         server_args.update({
             'site_handler': SlackProxyHandler(),
         })
